@@ -1,0 +1,187 @@
+
+sudo yum install figlet
+
+figlet -c Welcome 
+
+figlet -c For gp2 and standard Volume Types
+
+sleep 2
+
+################## To Display the Mounted EBS Volumes at /mnt/* and select the Volume that we want to Migrate @n@k@t###############################################
+df -h
+sleep 4
+df -h >mntptcalculation.txt
+
+echo "enter the line in which your mount point is located " && read mntpt && echo "You selected $mntpt"
+
+
+sed -n "$mntpt"p mntptcalculation.txt | awk '{print $6}'>cal.txt
+
+
+Mount=$(cat cal.txt)
+
+############### $Mount has the Mount Point of the EBS Volume that we want to Migrate ##############################
+
+echo "$Mount"
+
+###################### Instance ID is Stored in a Variable ####################################
+
+echo "Getting Instance Id"
+
+sleep 2
+
+ec2-metadata -i &> instanceid.txt
+
+var1=$(cat instanceid.txt | grep "i-"| awk '{print $2}')
+
+echo "instance id is $var1"
+
+##################### describe Volumes and filter the Volumes attached to the instance  ############################################3
+
+aws ec2 describe-volumes --region us-east-1 --filters Name=attachment.instance-id,Values=$var1
+
+echo "copy the Volume id of the attached ebs volume that you want to migrate"
+
+sleep 10 
+
+#################### Getting parametres of new  Volume to be attached to the instance  from the user #########################################
+
+
+echo "Enter the Size of the EBS Volume  " && read size && echo "Size of the EBS Volume is  $size" && echo "Enter the Availability Zone" && read zone && echo " Availabilty zone of the attached volume is  $zone" && echo "Enter the type of Volume" && read type && echo " Volume type is $type"
+
+
+
+ echo "Enter the Volume id of the attached Ebs " && read Volid && echo " Volume id of the attached ebs is $Volid"
+
+
+################################ Create a New Volume ########################################################
+
+aws ec2 create-volume --size $size --region  us-east-1 --availability-zone $zone --volume-type $type &> Volume.txt
+
+sleep 2
+
+echo "Creating New EBS  Volume"
+
+sleep 2
+
+var=$(cat Volume.txt | grep "vol-"| awk '{print $2}' | tr -d '" ,')
+
+sleep 2
+
+echo "Volume id of the created EBS is $var"
+
+
+sleep 2
+
+####################### Attaching the new Volume to the Instance at /dev/sdi ########################################
+
+aws ec2 attach-volume --volume-id $var --instance-id $var1 --device /dev/sdi
+
+sleep 5
+
+echo "processing"
+
+sleep 5
+
+echo "Have a Break "
+
+sleep 30
+ 
+echo "Have a Kitkat"
+
+sleep 5	
+
+################ Attaching a New Volume Takes Some time ###########
+
+echo "procesing"
+
+sleep 5	
+
+echo "processing"
+
+echo "done"
+
+sleep 2
+
+############################ formatinng new Volume ###################################################
+
+sudo mkfs -t ext4 /dev/sdi
+
+echo "formatting"
+
+sleep 3
+
+sudo mkdir /mnt/ebs1
+
+################################# Mounting the new Volume ##################################################
+
+sudo mount /dev/sdi /mnt/ebs1
+
+echo "volume Mounted"
+
+df 
+
+sleep 5
+
+########################## copy the data from old Volume to the new Volume and preserving all the permissions #############################
+
+######################  here Specify the mount point in which you want copy the data to the new Volume ################################
+
+sudo cp -r --preserve=all /mnt/ebs/. /mnt/ebs1 --verbose
+
+echo "copy done"
+
+sleep 2
+
+df 
+
+sleep 10
+
+echo "unmounting the volume"
+
+##############################  Using Lazy Umount ##############
+
+sudo umount -l $Mount
+
+echo "Detaching the Volume"
+
+############################## Detaching the old Volume ############################################
+
+aws ec2 detach-volume --volume-id $Volid
+
+sleep 3
+
+echo "Detaching"
+
+sleep 10
+
+df -h
+
+sleep 10 
+
+df -h 
+
+echo "precess Completed"
+
+
+sleep 2
+
+########################## Mounting the new Volume to the old Volumes Mount Point ##################################
+
+echo "Unmounting the new attached Volume"
+
+sudo umount /mnt/ebs1
+
+sleep 4
+echo "Unmounting Done"
+
+echo "Mounting the new Volume with Volume id $var to $Mount"
+sudo mount /dev/sdi $Mount
+
+echo "New ebs Volume Mounted to	$Mount"
+
+sleep 3
+
+df -h
+
+sleep 2 
